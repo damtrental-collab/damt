@@ -134,7 +134,7 @@ th{color:var(--muted);font-weight:600}
 <div id="view-home">
   <div class="hero">
     <h1>Find your next home. Verified, simple, secure.</h1>
-    <p>Browse rentals across the city. Unlock full contact & address details for ₹100/day, verified over Telegram.</p>
+    <p>Browse rentals across the city. Unlock full contact & address details for ₹100/day, instant access.</p>
     <div class="cta-row">
       <button class="btn btn-gold" onclick="openAuth('seeker')">Browse as a House Seeker</button>
       <button class="btn btn-outline" onclick="openAuth('owner')">List a Property (Owner)</button>
@@ -368,26 +368,6 @@ th{color:var(--muted);font-weight:600}
       <input id="razorpayPaymentIdInput" placeholder="pay_XXXXXXXXXXXX">
       <button class="btn btn-teal" style="margin-top:10px;width:100%" onclick="confirmPayment()">Confirm Payment</button>
       <p class="small">In production this step is replaced automatically by the Razorpay webhook — see EDGE_FUNCTIONS_SETUP.md.</p>
-    </div>
-  </div>
-</div>
-
-<!-- =================== OTP MODAL =================== -->
-<div id="otpModal" class="modal-bg hidden">
-  <div class="modal">
-    <button class="close" onclick="closeModal('otpModal')">✕</button>
-    <div class="section-title"><span class="dot"></span><h3>Telegram Verification</h3></div>
-    <div id="otpMsg"></div>
-    <div id="otpChatIdRow">
-      <label>Your Telegram Chat ID</label>
-      <p class="small">Message your bot once first, then get your chat ID from @userinfobot on Telegram.</p>
-      <input id="telegramChatIdInput" placeholder="e.g. 123456789">
-      <button class="btn btn-teal" style="margin-top:10px;width:100%" onclick="sendOtp()">Send OTP via Telegram</button>
-    </div>
-    <div id="otpCodeRow" class="hidden" style="margin-top:14px">
-      <label>Enter the 6-digit code</label>
-      <input id="otpCodeInput" maxlength="6">
-      <button class="btn btn-gold" style="margin-top:10px;width:100%" onclick="verifyOtp()">Verify &amp; Unlock</button>
     </div>
   </div>
 </div>
@@ -706,47 +686,18 @@ async function confirmPayment(){
   currentPaymentId = payment.id;
   await generateAndDownloadBill(payment, amount);
 
-  closeModal('payModal');
-  document.getElementById('otpChatIdRow').classList.remove('hidden');
-  document.getElementById('otpCodeRow').classList.add('hidden');
-  msg('otpMsg','');
-  document.getElementById('otpModal').classList.remove('hidden');
-}
+  // Notify the admin's Telegram with the payment details (fire-and-forget —
+  // access is already unlocked regardless of whether this succeeds)
+  fetch(`${EDGE_FUNCTIONS_BASE}/notify-admin-payment`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      user_email: currentUser.email, amount, razorpay_payment_id: rpid,
+      coupon_code: appliedCoupon ? appliedCoupon.code : null
+    })
+  }).catch(()=>{ /* non-blocking */ });
 
-/* ---- OTP flow ---- */
-async function sendOtp(){
-  const chatId = document.getElementById('telegramChatIdInput').value.trim();
-  if(!chatId){ msg('otpMsg','Please enter your Telegram chat ID.'); return; }
-  await sb.from('profiles').update({ telegram_chat_id: chatId }).eq('id', currentUser.id);
-
-  try{
-    const res = await fetch(`${EDGE_FUNCTIONS_BASE}/send-otp`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ user_id: currentUser.id, telegram_chat_id: chatId })
-    });
-    if(!res.ok) throw new Error('failed');
-    document.getElementById('otpCodeRow').classList.remove('hidden');
-    msg('otpMsg','OTP sent via Telegram.', true);
-  }catch(e){
-    msg('otpMsg','Could not send OTP — check that the send-otp Edge Function is deployed (see EDGE_FUNCTIONS_SETUP.md).');
-  }
-}
-
-async function verifyOtp(){
-  const otp = document.getElementById('otpCodeInput').value.trim();
-  if(!otp){ msg('otpMsg','Enter the code sent to your Telegram.'); return; }
-  try{
-    const res = await fetch(`${EDGE_FUNCTIONS_BASE}/verify-otp`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ user_id: currentUser.id, otp })
-    });
-    const json = await res.json();
-    if(!json.ok){ msg('otpMsg', json.error || 'Invalid code.'); return; }
-    msg('otpMsg','Verified! Your listing details are now unlocked for 24 hours.', true);
-    setTimeout(()=>{ closeModal('otpModal'); loadSeekerListings(); }, 1200);
-  }catch(e){
-    msg('otpMsg','Verification service unavailable — check Edge Function deployment.');
-  }
+  msg('payMsg','Payment confirmed! Full details unlocked for 24 hours.', true);
+  setTimeout(()=>{ closeModal('payModal'); loadSeekerListings(); }, 1200);
 }
 
 /* ---- profile ---- */
