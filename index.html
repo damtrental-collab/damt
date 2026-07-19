@@ -361,14 +361,7 @@ th{color:var(--muted);font-weight:600}
     <div style="margin:16px 0;font-size:20px;font-weight:700;color:var(--gold-soft)">
       Payable: ₹<span id="payAmount">100</span>
     </div>
-    <button class="btn btn-gold" style="width:100%" onclick="startPayment()">Pay with Razorpay</button>
-
-    <div id="paymentIdRow" class="hidden" style="margin-top:16px">
-      <label>Paste Razorpay Payment ID (shown on the payment success page)</label>
-      <input id="razorpayPaymentIdInput" placeholder="pay_XXXXXXXXXXXX">
-      <button class="btn btn-teal" style="margin-top:10px;width:100%" onclick="confirmPayment()">Confirm Payment</button>
-      <p class="small">In production this step is replaced automatically by the Razorpay webhook — see EDGE_FUNCTIONS_SETUP.md.</p>
-    </div>
+    <button class="btn btn-gold" style="width:100%" onclick="payNow()">Pay with Razorpay</button>
   </div>
 </div>
 
@@ -394,8 +387,8 @@ th{color:var(--muted);font-weight:600}
    ========================================================= */
 const SUPABASE_URL = "https://gjjedfyzhajmhrazqvus.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_uauWauxYbm6JjNLPm0RQlg_qKRAPqRs";
-const RAZORPAY_KEY_ID = "YOUR_RAZORPAY_KEY_ID";
-const RAZORPAY_PAYMENT_LINK = "https://rzp.io/rzp/jpDlYSL"; // fallback hosted link
+const RAZORPAY_KEY_ID = "YOUR_RAZORPAY_KEY_ID"; // Razorpay Dashboard → Settings → API Keys (public, safe to embed) — not currently used by the payment-link flow, kept for future upgrade
+const RAZORPAY_PAYMENT_LINK = "https://rzp.io/rzp/jpDlYSL"; // your hosted payment link
 const EDGE_FUNCTIONS_BASE = SUPABASE_URL + "/functions/v1";
 const GSTIN = "33DWCPA3567H1ZS";
 const COMPANY_NAME = "Dhineshkumar Adpc - Murugan Trader";
@@ -467,8 +460,14 @@ async function submitAuth(){
     const { data, error } = await sb.auth.signUp({ email, password });
     if(error){ msg('authMsg', error.message); return; }
     await sb.from('profiles').insert({ id: data.user.id, role });
-    msg('authMsg', 'Account created. You can now log in.', true);
-    setAuthMode('login');
+    if(data.session){
+      await loadCurrentUser();
+      closeModal('authModal');
+      go(currentProfile.role === 'owner' ? 'owner' : 'seeker');
+    } else {
+      msg('authMsg', 'Account created. Please check your email to confirm, then log in.', true);
+      setAuthMode('login');
+    }
     return;
   } else {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -640,7 +639,6 @@ function openUnlock(propId, title){
   document.getElementById('payAmount').textContent = '100';
   document.getElementById('couponInput').value = '';
   document.getElementById('couponResult').textContent = '';
-  document.getElementById('paymentIdRow').classList.add('hidden');
   msg('payMsg','');
   document.getElementById('payModal').classList.remove('hidden');
 }
@@ -666,41 +664,40 @@ async function applyCoupon(){
   resultEl.innerHTML = `<span style="color:var(--ok)">Coupon applied! ₹${100-amount} off.</span>`;
 }
 
-function startPayment(){
-  // Opens your Razorpay Payment Link. For automatic verification, upgrade to
-  // the Orders API + webhook flow in EDGE_FUNCTIONS_SETUP.md.
-  window.open(RAZORPAY_PAYMENT_LINK, '_blank');
-  document.getElementById('paymentIdRow').classList.remove('hidden');
+let pollTimer = null;
+
+async function payNow(){
+  msg('payMsg','Opening Razorpay in a new tab — complete the payment there, then come back to this tab. It will unlock automatically once we receive confirmation (usually within a few seconds).');
+
+  // Pass our user_id through as a Razorpay "note" so the webhook knows who paid
+  const url = `${RAZORPAY_PAYMENT_LINK}?notes[user_id]=${encodeURIComponent(currentUser.id)}`;
+  window.open(url, '_blank');
+
+  pollForPayment();
 }
 
-async function confirmPayment(){
-  const rpid = document.getElementById('razorpayPaymentIdInput').value.trim();
-  if(!rpid){ msg('payMsg','Please paste your Razorpay Payment ID.'); return; }
-  const amount = Number(document.getElementById('payAmount').textContent);
-  const expires = new Date(Date.now() + 24*60*60*1000).toISOString();
+function pollForPayment(){
+  if(pollTimer) clearInterval(pollTimer);
+  let attempts = 0;
+  pollTimer = setInterval(async () => {
+    attempts++;
+    const { data } = await sb.from('payments')
+      .select('*').eq('user_id', currentUser.id).eq('status','paid')
+      .gt('access_expires_at', new Date().toISOString())
+      .order('created_at', { ascending:false }).limit(1);
 
-  const { data: payment, error } = await sb.from('payments').insert({
-    user_id: currentUser.id, amount, coupon_code: appliedCoupon ? appliedCoupon.code : null,
-    razorpay_payment_id: rpid, status: 'paid', access_expires_at: expires
-  }).select().single();
-
-  if(error){ msg('payMsg', error.message); return; }
-
-  currentPaymentId = payment.id;
-  await generateAndDownloadBill(payment, amount);
-
-  // Notify the admin's Telegram with the payment details (fire-and-forget —
-  // access is already unlocked regardless of whether this succeeds)
-  fetch(`${EDGE_FUNCTIONS_BASE}/notify-admin-payment`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      user_email: currentUser.email, amount, razorpay_payment_id: rpid,
-      coupon_code: appliedCoupon ? appliedCoupon.code : null
-    })
-  }).catch(()=>{ /* non-blocking */ });
-
-  msg('payMsg','Payment confirmed! Full details unlocked for 24 hours.', true);
-  setTimeout(()=>{ closeModal('payModal'); loadSeekerListings(); }, 1200);
+    if(data && data.length){
+      clearInterval(pollTimer);
+      currentPaymentId = data[0].id;
+      const { data: bill } = await sb.from('bills').select('*').eq('payment_id', data[0].id).single();
+      if(bill) downloadBillPDF(bill);
+      msg('payMsg','Payment received! Full details unlocked for 24 hours.', true);
+      setTimeout(()=>{ closeModal('payModal'); loadSeekerListings(); }, 1200);
+    } else if(attempts > 100){ // ~5 minutes at 3s intervals
+      clearInterval(pollTimer);
+      msg('payMsg','Still waiting for confirmation. If you completed the payment, this can take a minute — try refreshing the page, or contact support with your payment ID.');
+    }
+  }, 3000);
 }
 
 /* ---- profile ---- */
@@ -965,22 +962,6 @@ async function loadPublicTerms(){
 /* =========================================================
    BILL GENERATION (auto PDF, GST @ 18%)
    ========================================================= */
-async function generateAndDownloadBill(payment, amount){
-  // amount is GST-inclusive (what was actually charged via Razorpay).
-  // Break it down into base + GST so they add up to the amount charged.
-  const gst = +(amount * 0.18).toFixed(2);
-  const baseAmount = +(amount - gst).toFixed(2);
-  const total = amount;
-  const billNumber = `DAMT-${Date.now()}`;
-
-  const { data: bill } = await sb.from('bills').insert({
-    bill_number: billNumber, payment_id: payment.id, user_id: currentUser.id,
-    amount: baseAmount, gst_amount: gst, total_amount: total
-  }).select().single();
-
-  downloadBillPDF(bill || { bill_number: billNumber, amount: baseAmount, gst_amount: gst, total_amount: total, created_at: new Date().toISOString() });
-}
-
 function downloadBillPDF(bill){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
