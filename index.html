@@ -239,11 +239,35 @@ th{color:var(--muted);font-weight:600}
 <!-- =================== ADMIN DASHBOARD =================== -->
 <div id="view-admin" class="wrap hidden">
   <div class="tabs">
+    <div class="tab" data-tab="a-add" onclick="switchTab('admin','a-add')">Add Listing</div>
     <div class="tab active" data-tab="a-pending" onclick="switchTab('admin','a-pending')">Pending Approvals</div>
     <div class="tab" data-tab="a-all" onclick="switchTab('admin','a-all')">All Listings</div>
     <div class="tab" data-tab="a-coupons" onclick="switchTab('admin','a-coupons')">Coupons</div>
     <div class="tab" data-tab="a-bills" onclick="switchTab('admin','a-bills')">Bills</div>
     <div class="tab" data-tab="a-terms" onclick="switchTab('admin','a-terms')">Terms &amp; Conditions</div>
+  </div>
+
+  <div id="tab-a-add" class="hidden">
+    <div class="panel" style="max-width:600px">
+      <div class="section-title"><span class="dot"></span><h3>Add a Listing (goes live immediately)</h3></div>
+      <div id="adminAddMsg"></div>
+      <label>Title</label>
+      <input id="aTitle" placeholder="e.g. 2BHK near Anna Nagar">
+      <div class="form-row">
+        <div><label>City</label><input id="aCity"></div>
+        <div><label>Monthly Rent (₹)</label><input id="aRent" type="number"></div>
+      </div>
+      <label>Full Address (shown to paid users only)</label>
+      <textarea id="aAddress" rows="2"></textarea>
+      <label>Owner Contact Number (shown to paid users only)</label>
+      <input id="aContact">
+      <label>Description</label>
+      <textarea id="aDesc" rows="3"></textarea>
+      <label>Photos</label>
+      <input type="file" id="aPhotos" accept="image/*" multiple>
+      <button class="btn btn-gold" style="margin-top:16px" onclick="adminAddProperty()">Publish Listing</button>
+      <p class="small" style="margin-top:10px">Listings added here skip the approval queue and appear on the home page right away.</p>
+    </div>
   </div>
 
   <div id="tab-a-pending"><div class="grid" id="adminPendingGrid"></div></div>
@@ -318,11 +342,6 @@ th{color:var(--muted);font-weight:600}
     <label>Password</label>
     <input id="authPassword" type="password">
     <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="submitAuth()">Continue</button>
-    <div style="text-align:center;margin:14px 0;color:#888;font-size:13px">— or —</div>
-    <button class="btn" style="width:100%;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;gap:8px" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 2.9l6-6C34.6 5.1 29.6 3 24 3c-7.5 0-14 4.1-17.7 10.2z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.8 14.3-5l-6.6-5.6C29.6 35.9 26.9 37 24 37c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.9 40.9 16.4 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.6 5.6C40.9 36.6 43 30.8 43 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
-      Sign in with Google
-    </button>
   </div>
 </div>
 
@@ -805,6 +824,41 @@ async function submitProperty(){
   if(!error){
     ['opTitle','opCity','opRent','opAddress','opContact','opDesc'].forEach(id=>document.getElementById(id).value='');
     loadOwnerListings();
+  }
+}
+
+async function adminAddProperty(){
+  const title = document.getElementById('aTitle').value.trim();
+  const city = document.getElementById('aCity').value.trim();
+  const rent = Number(document.getElementById('aRent').value);
+  const address = document.getElementById('aAddress').value.trim();
+  const contact = document.getElementById('aContact').value.trim();
+  const desc = document.getElementById('aDesc').value.trim();
+  if(!title || !city || !rent){ msg('adminAddMsg','Please fill in title, city and rent.'); return; }
+
+  let thumbnailUrl = null;
+  const files = document.getElementById('aPhotos').files;
+  if(files.length){
+    const file = files[0];
+    const path = `${currentUser.id}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await sb.storage.from('property-photos').upload(path, file);
+    if(!upErr){
+      const { data: pub } = sb.storage.from('property-photos').getPublicUrl(path);
+      thumbnailUrl = pub.publicUrl;
+    }
+  }
+
+  const { error } = await sb.from('properties').insert({
+    owner_id: currentUser.id, title, city, rent,
+    public_summary: `${city} • ₹${rent}/mo`,
+    full_address: address, owner_contact: contact, description: desc,
+    thumbnail_url: thumbnailUrl, status: 'approved'
+  });
+  msg('adminAddMsg', error ? error.message : 'Listing published!', !error);
+  if(!error){
+    ['aTitle','aCity','aRent','aAddress','aContact','aDesc'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('aPhotos').value = '';
+    loadAdminAll(); loadAdminPending();
   }
 }
 
