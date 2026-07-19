@@ -359,7 +359,7 @@ th{color:var(--muted);font-weight:600}
     </div>
     <div id="couponResult" class="small" style="margin-top:6px"></div>
     <div style="margin:16px 0;font-size:20px;font-weight:700;color:var(--gold-soft)">
-      Payable: ₹<span id="payAmount">118</span>
+      Payable: ₹<span id="payAmount">100</span>
     </div>
     <button class="btn btn-gold" style="width:100%" onclick="startPayment()">Pay with Razorpay</button>
 
@@ -400,7 +400,9 @@ const EDGE_FUNCTIONS_BASE = SUPABASE_URL + "/functions/v1";
 const GSTIN = "33DWCPA3567H1ZS";
 const COMPANY_NAME = "Dhineshkumar Adpc - Murugan Trader";
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
 
 let currentUser = null;
 let currentProfile = null;
@@ -484,7 +486,8 @@ async function signInWithGoogle(){
 }
 
 async function loadCurrentUser(){
-  const { data: { user } } = await sb.auth.getUser();
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session ? session.user : null;
   currentUser = user;
   if(!user){ currentProfile = null; renderNav(); return; }
   let { data } = await sb.from('profiles').select('*').eq('id', user.id).single();
@@ -963,16 +966,19 @@ async function loadPublicTerms(){
    BILL GENERATION (auto PDF, GST @ 18%)
    ========================================================= */
 async function generateAndDownloadBill(payment, amount){
+  // amount is GST-inclusive (what was actually charged via Razorpay).
+  // Break it down into base + GST so they add up to the amount charged.
   const gst = +(amount * 0.18).toFixed(2);
-  const total = +(amount + gst).toFixed(2);
+  const baseAmount = +(amount - gst).toFixed(2);
+  const total = amount;
   const billNumber = `DAMT-${Date.now()}`;
 
   const { data: bill } = await sb.from('bills').insert({
     bill_number: billNumber, payment_id: payment.id, user_id: currentUser.id,
-    amount, gst_amount: gst, total_amount: total
+    amount: baseAmount, gst_amount: gst, total_amount: total
   }).select().single();
 
-  downloadBillPDF(bill || { bill_number: billNumber, amount, gst_amount: gst, total_amount: total, created_at: new Date().toISOString() });
+  downloadBillPDF(bill || { bill_number: billNumber, amount: baseAmount, gst_amount: gst, total_amount: total, created_at: new Date().toISOString() });
 }
 
 function downloadBillPDF(bill){
