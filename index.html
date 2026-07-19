@@ -1023,6 +1023,7 @@ loadPublicListings();
 
 sb.auth.onAuthStateChange((_event, session) => {
   if(!session){ currentUser = null; currentProfile = null; renderNav(); }
+  else { loadCurrentUser(); }
 });
 loadCurrentUser();
 </script>
