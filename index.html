@@ -539,8 +539,10 @@ async function submitAuth(){
     const role = document.getElementById('signupRole').value;
     const { data, error } = await sb.auth.signUp({ email, password });
     if(error){ msg('authMsg', error.message); return; }
-    await sb.from('profiles').upsert({ id: data.user.id, role }, { onConflict: 'id' });
+    localStorage.setItem('damt_pending_role', role); // survives until real login if confirmation is required
     if(data.session){
+      await sb.from('profiles').upsert({ id: data.user.id, role }, { onConflict: 'id' });
+      localStorage.removeItem('damt_pending_role');
       await loadCurrentUser();
       closeModal('authModal');
       go(currentProfile.role === 'owner' ? 'owner' : 'seeker');
