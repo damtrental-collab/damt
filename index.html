@@ -144,7 +144,7 @@ th{color:var(--muted);font-weight:600}
 <div id="view-home">
   <div class="hero">
     <h1>Find your next home. Verified, simple, secure.</h1>
-    <p>Browse rentals across the city. Unlock full contact & address details for ₹100/day, instant access.</p>
+    <p>Browse rentals across the city. Unlock full contact & address details for ₹<span id="heroAmount">100</span>/day, instant access.</p>
     <div class="cta-row">
       <button class="btn btn-gold" onclick="openAuth('seeker')">Browse as a House Seeker</button>
       <button class="btn btn-outline" onclick="openAuth('owner')">List a Property (Owner)</button>
@@ -296,6 +296,7 @@ th{color:var(--muted);font-weight:600}
     <div class="tab" data-tab="a-coupons" onclick="switchTab('admin','a-coupons')">Coupons</div>
     <div class="tab" data-tab="a-bills" onclick="switchTab('admin','a-bills')">Bills</div>
     <div class="tab" data-tab="a-terms" onclick="switchTab('admin','a-terms')">Terms &amp; Conditions</div>
+    <div class="tab" data-tab="a-settings" onclick="switchTab('admin','a-settings')">Payment Settings</div>
   </div>
 
   <div id="tab-a-add" class="hidden">
@@ -386,6 +387,18 @@ th{color:var(--muted);font-weight:600}
       <button class="btn btn-gold" style="margin-top:16px" onclick="saveTerms()">Save &amp; Publish</button>
     </div>
   </div>
+
+  <div id="tab-a-settings" class="hidden">
+    <div class="panel" style="max-width:480px">
+      <div class="section-title"><span class="dot"></span><h3>Payment Settings</h3></div>
+      <div id="settingsMsg"></div>
+      <label>Razorpay Payment Link</label>
+      <input id="settingsPaymentLink" placeholder="https://rzp.io/rzp/xxxxxxx">
+      <label style="margin-top:12px">Unlock Amount (₹)</label>
+      <input id="settingsAmount" type="number" min="1" step="1">
+      <button class="btn btn-gold" style="margin-top:16px" onclick="savePaymentSettings()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- =================== TERMS (public view) =================== -->
@@ -422,7 +435,7 @@ th{color:var(--muted);font-weight:600}
 <div id="payModal" class="modal-bg hidden">
   <div class="modal">
     <button class="close" onclick="closeModal('payModal')">✕</button>
-    <div class="section-title"><span class="dot"></span><h3>Unlock Full Details — ₹100/day</h3></div>
+    <div class="section-title"><span class="dot"></span><h3>Unlock Full Details — ₹<span id="unlockHeadingAmt">100</span>/day</h3></div>
     <div id="payMsg"></div>
     <p class="small" id="payPropertyTitle"></p>
     <label>Coupon Code (optional)</label>
@@ -461,7 +474,8 @@ th{color:var(--muted);font-weight:600}
 const SUPABASE_URL = "https://gjjedfyzhajmhrazqvus.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_uauWauxYbm6JjNLPm0RQlg_qKRAPqRs";
 const RAZORPAY_KEY_ID = "YOUR_RAZORPAY_KEY_ID"; // Razorpay Dashboard → Settings → API Keys (public, safe to embed) — not currently used by the payment-link flow, kept for future upgrade
-const RAZORPAY_PAYMENT_LINK = "https://rzp.io/rzp/viGsSVr"; // your hosted payment link
+let RAZORPAY_PAYMENT_LINK = "https://rzp.io/rzp/viGsSVr"; // default; overridden by app_settings table if present
+let UNLOCK_AMOUNT = 2; // default; overridden by app_settings table if present
 const EDGE_FUNCTIONS_BASE = SUPABASE_URL + "/functions/v1";
 const GSTIN = "33DWCPA3567H1ZS";
 const COMPANY_NAME = "Dhineshkumar Adpc - Murugan Trader";
@@ -486,7 +500,7 @@ function go(view){
   if(view==='home') loadPublicListings();
   if(view==='seeker') { loadSeekerListings(); loadProfileIntoForm(); refreshAccessStatus(); }
   if(view==='owner') { loadOwnerListings(); }
-  if(view==='admin') { loadAdminPending(); loadAdminAll(); loadCoupons(); loadBills(); loadTermsIntoForm(); }
+  if(view==='admin') { loadAdminPending(); loadAdminAll(); loadCoupons(); loadBills(); loadTermsIntoForm(); loadPaymentSettingsIntoForm(); }
   if(view==='terms') loadPublicTerms();
 }
 
@@ -662,7 +676,7 @@ function renderAccessStatusBox(){
     box.innerHTML = `<span class="badge badge-active">ACTIVE</span> Valid until <span class="countdown" id="countdownText"></span>`;
     tickCountdown(seekerAccess.access_expires_at);
   } else {
-    box.innerHTML = `No active access. Unlock any listing for ₹100 to get 24-hour access.`;
+    box.innerHTML = `No active access. Unlock any listing for ₹${UNLOCK_AMOUNT} to get 24-hour access.`;
   }
 }
 
@@ -727,7 +741,7 @@ async function loadSeekerListings(){
         <div class="rent">₹${p.rent}<span class="rent-tag">/month</span></div>
         <button class="btn ${unlocked?'btn-teal':'btn-gold'} btn-sm" style="margin-top:10px"
           onclick="${unlocked ? `viewFullDetails('${p.id}')` : `openUnlock('${p.id}','${escapeHtml(p.title)}')`}">
-          ${unlocked ? 'View Full Details' : 'Unlock for ₹100/day'}
+          ${unlocked ? 'View Full Details' : `Unlock for ₹${UNLOCK_AMOUNT}/day`}
         </button>
       </div>
     </div>`;
@@ -762,7 +776,7 @@ function openUnlock(propId, title){
   currentPropertyForUnlock = propId;
   appliedCoupon = null;
   document.getElementById('payPropertyTitle').textContent = title;
-  document.getElementById('payAmount').textContent = '100';
+  document.getElementById('payAmount').textContent = UNLOCK_AMOUNT;
   document.getElementById('couponInput').value = '';
   document.getElementById('couponResult').textContent = '';
   msg('payMsg','');
@@ -778,16 +792,16 @@ async function applyCoupon(){
      (data.usage_limit && data.used_count >= data.usage_limit)){
     resultEl.innerHTML = `<span style="color:var(--danger)">Invalid or expired coupon.</span>`;
     appliedCoupon = null;
-    document.getElementById('payAmount').textContent = '100';
+    document.getElementById('payAmount').textContent = UNLOCK_AMOUNT;
     return;
   }
   appliedCoupon = data;
-  let amount = 100;
+  let amount = UNLOCK_AMOUNT;
   if(data.discount_percent) amount = amount - (amount * data.discount_percent/100);
   if(data.discount_amount) amount = amount - data.discount_amount;
   amount = Math.max(0, Math.round(amount));
   document.getElementById('payAmount').textContent = amount;
-  resultEl.innerHTML = `<span style="color:var(--ok)">Coupon applied! ₹${100-amount} off.</span>`;
+  resultEl.innerHTML = `<span style="color:var(--ok)">Coupon applied! ₹${UNLOCK_AMOUNT-amount} off.</span>`;
 }
 
 let pollTimer = null;
@@ -1086,6 +1100,31 @@ async function loadBills(){
     </tr>`).join('') || '<tr><td colspan="6" class="small">No bills yet.</td></tr>';
 }
 
+async function loadPaymentSettings(){
+  const { data } = await sb.from('app_settings').select('*').eq('id',1).single();
+  if(data){
+    RAZORPAY_PAYMENT_LINK = data.payment_link;
+    UNLOCK_AMOUNT = data.unlock_amount;
+  }
+  const heroEl = document.getElementById('heroAmount');
+  if(heroEl) heroEl.textContent = UNLOCK_AMOUNT;
+  const unlockHeadEl = document.getElementById('unlockHeadingAmt');
+  if(unlockHeadEl) unlockHeadEl.textContent = UNLOCK_AMOUNT;
+  renderAccessStatusBox();
+}
+async function loadPaymentSettingsIntoForm(){
+  const { data } = await sb.from('app_settings').select('*').eq('id',1).single();
+  document.getElementById('settingsPaymentLink').value = data ? data.payment_link : RAZORPAY_PAYMENT_LINK;
+  document.getElementById('settingsAmount').value = data ? data.unlock_amount : UNLOCK_AMOUNT;
+}
+async function savePaymentSettings(){
+  const payment_link = document.getElementById('settingsPaymentLink').value.trim();
+  const unlock_amount = Number(document.getElementById('settingsAmount').value);
+  const { error } = await sb.from('app_settings')
+    .update({ payment_link, unlock_amount, updated_at: new Date().toISOString() }).eq('id',1);
+  msg('settingsMsg', error ? error.message : 'Payment settings updated.', !error);
+  if(!error) await loadPaymentSettings();
+}
 async function loadTermsIntoForm(){
   const { data } = await sb.from('terms').select('*').eq('id',1).single();
   document.getElementById('termsContent').value = data ? data.content : '';
@@ -1153,6 +1192,7 @@ document.getElementById('signupRole').value = 'seeker';
 setAuthMode('login');
 renderNav();
 loadPublicListings();
+loadPaymentSettings();
 
 sb.auth.onAuthStateChange((_event, session) => {
   if(!session){ currentUser = null; currentProfile = null; renderNav(); }
