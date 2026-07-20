@@ -404,9 +404,8 @@ th{color:var(--muted);font-weight:600}
       <div class="tab" id="tabSignup" onclick="setAuthMode('signup')">Sign Up</div>
     </div>
     <div id="signupRoleRow" class="hidden">
-      <label>Signing up as</label>
-      <div id="roleIndicator" class="role-indicator"></div>
-      <select id="signupRole" class="hidden">
+      <label>I am a</label>
+      <select id="signupRole" onchange="updateAuthTitle()">
         <option value="seeker">House Seeker</option>
         <option value="owner">Property Owner</option>
       </select>
@@ -514,8 +513,6 @@ let pendingRole = 'seeker';
 function openAuth(role){
   pendingRole = role;
   document.getElementById('signupRole').value = role;
-  const label = role === 'owner' ? '🏠 Property Owner' : '🔑 House Seeker';
-  document.getElementById('roleIndicator').textContent = label;
   document.getElementById('authModal').classList.remove('hidden');
   setAuthMode('login');
 }
@@ -524,9 +521,13 @@ function setAuthMode(mode){
   document.getElementById('tabLogin').classList.toggle('active', mode==='login');
   document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
   document.getElementById('signupRoleRow').classList.toggle('hidden', mode!=='signup');
-  const roleLabel = pendingRole === 'owner' ? 'Property Owner' : 'House Seeker';
+  updateAuthTitle();
+}
+function updateAuthTitle(){
+  const role = document.getElementById('signupRole').value;
+  const roleLabel = role === 'owner' ? 'Property Owner' : 'House Seeker';
   document.getElementById('authTitle').textContent =
-    mode==='login' ? `${roleLabel} Login` : `${roleLabel} Sign Up`;
+    authMode==='login' ? `${roleLabel} Login` : `${roleLabel} Sign Up`;
 }
 
 async function submitAuth(){
