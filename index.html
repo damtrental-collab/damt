@@ -69,7 +69,16 @@ a{color:var(--gold-soft)}
 .card .title{font-weight:700;font-size:16px}
 .card .meta{color:var(--muted);font-size:13px}
 .card .rent{color:var(--gold-soft);font-weight:700;font-size:15px;margin-top:auto}
+.card .rent .rent-tag{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+.card .facts{display:flex;gap:14px;color:var(--muted);font-size:13px;padding:6px 0;border-top:1px solid #262836;margin-top:4px}
+.card .facts span{display:flex;align-items:center;gap:5px}
+.card .no-brokerage{position:absolute;top:10px;left:10px;background:#193b30;color:#5cd6a9;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.card .type-tag{position:absolute;top:10px;right:10px;background:rgba(11,12,16,.7);color:#f0e6c8;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px}
+.search-bar{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 4px;background:var(--panel);border:1px solid #262836;border-radius:var(--radius);padding:14px}
+.search-bar input,.search-bar select{flex:1;min-width:130px;margin:0}
+.search-bar button{flex:0 0 auto}
 .badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:700;letter-spacing:.4px}
+.role-indicator{background:#1c1e29;border:1px solid #262836;border-radius:8px;padding:10px 14px;font-weight:600;color:var(--gold-soft);margin-bottom:10px}
 .badge-pending{background:#3a3320;color:#e9c95d}
 .badge-approved{background:#193b30;color:#5cd6a9}
 .badge-rejected{background:#3b1a1a;color:#e97b7b}
@@ -84,6 +93,7 @@ input,textarea,select{width:100%;padding:10px 12px;background:var(--panel2);bord
   border-radius:10px;color:var(--cream);font-size:14px;font-family:inherit}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--gold)}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row.cols-3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:600px){.form-row{grid-template-columns:1fr}}
 
 /* ---------- modal ---------- */
@@ -154,6 +164,25 @@ th{color:var(--muted);font-weight:600}
   </div>
 
   <div id="tab-s-listings">
+    <div class="search-bar">
+      <input id="searchCity" placeholder="Search by city or locality...">
+      <select id="filterType">
+        <option value="">Any type</option>
+        <option value="Apartment">Apartment</option>
+        <option value="House">Independent House</option>
+        <option value="Villa">Villa</option>
+        <option value="PG">PG / Hostel</option>
+      </select>
+      <select id="filterBedrooms">
+        <option value="">Any BHK</option>
+        <option value="1">1 BHK</option>
+        <option value="2">2 BHK</option>
+        <option value="3">3 BHK</option>
+        <option value="4">4+ BHK</option>
+      </select>
+      <input id="filterMaxRent" type="number" placeholder="Max rent ₹">
+      <button class="btn btn-gold" onclick="loadSeekerListings()">Search</button>
+    </div>
     <div class="grid" id="seekerGrid"></div>
   </div>
 
@@ -208,6 +237,28 @@ th{color:var(--muted);font-weight:600}
       <textarea id="opAddress" rows="2"></textarea>
       <label>Owner Contact Number (shown to paid users only)</label>
       <input id="opContact">
+      <div class="form-row">
+        <div><label>Property Type</label>
+          <select id="opType">
+            <option value="Apartment">Apartment</option>
+            <option value="House">Independent House</option>
+            <option value="Villa">Villa</option>
+            <option value="PG">PG / Hostel</option>
+          </select>
+        </div>
+        <div><label>Furnishing</label>
+          <select id="opFurnishing">
+            <option>Unfurnished</option>
+            <option>Semi-Furnished</option>
+            <option>Fully Furnished</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols-3">
+        <div><label>Bedrooms</label><input id="opBedrooms" type="number" min="0"></div>
+        <div><label>Bathrooms</label><input id="opBathrooms" type="number" min="0"></div>
+        <div><label>Area (sqft)</label><input id="opArea" type="number" min="0"></div>
+      </div>
       <label>Description</label>
       <textarea id="opDesc" rows="3"></textarea>
       <label>Photos</label>
@@ -261,6 +312,28 @@ th{color:var(--muted);font-weight:600}
       <textarea id="aAddress" rows="2"></textarea>
       <label>Owner Contact Number (shown to paid users only)</label>
       <input id="aContact">
+      <div class="form-row">
+        <div><label>Property Type</label>
+          <select id="aType">
+            <option value="Apartment">Apartment</option>
+            <option value="House">Independent House</option>
+            <option value="Villa">Villa</option>
+            <option value="PG">PG / Hostel</option>
+          </select>
+        </div>
+        <div><label>Furnishing</label>
+          <select id="aFurnishing">
+            <option>Unfurnished</option>
+            <option>Semi-Furnished</option>
+            <option>Fully Furnished</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols-3">
+        <div><label>Bedrooms</label><input id="aBedrooms" type="number" min="0"></div>
+        <div><label>Bathrooms</label><input id="aBathrooms" type="number" min="0"></div>
+        <div><label>Area (sqft)</label><input id="aArea" type="number" min="0"></div>
+      </div>
       <label>Description</label>
       <textarea id="aDesc" rows="3"></textarea>
       <label>Photos</label>
@@ -331,8 +404,9 @@ th{color:var(--muted);font-weight:600}
       <div class="tab" id="tabSignup" onclick="setAuthMode('signup')">Sign Up</div>
     </div>
     <div id="signupRoleRow" class="hidden">
-      <label>I am a</label>
-      <select id="signupRole">
+      <label>Signing up as</label>
+      <div id="roleIndicator" class="role-indicator"></div>
+      <select id="signupRole" class="hidden">
         <option value="seeker">House Seeker</option>
         <option value="owner">Property Owner</option>
       </select>
@@ -440,14 +514,19 @@ let pendingRole = 'seeker';
 function openAuth(role){
   pendingRole = role;
   document.getElementById('signupRole').value = role;
+  const label = role === 'owner' ? '🏠 Property Owner' : '🔑 House Seeker';
+  document.getElementById('roleIndicator').textContent = label;
   document.getElementById('authModal').classList.remove('hidden');
+  setAuthMode('login');
 }
 function setAuthMode(mode){
   authMode = mode;
   document.getElementById('tabLogin').classList.toggle('active', mode==='login');
   document.getElementById('tabSignup').classList.toggle('active', mode==='signup');
   document.getElementById('signupRoleRow').classList.toggle('hidden', mode!=='signup');
-  document.getElementById('authTitle').textContent = mode==='login' ? 'Login' : 'Create Account';
+  const roleLabel = pendingRole === 'owner' ? 'Property Owner' : 'House Seeker';
+  document.getElementById('authTitle').textContent =
+    mode==='login' ? `${roleLabel} Login` : `${roleLabel} Sign Up`;
 }
 
 async function submitAuth(){
@@ -459,7 +538,7 @@ async function submitAuth(){
     const role = document.getElementById('signupRole').value;
     const { data, error } = await sb.auth.signUp({ email, password });
     if(error){ msg('authMsg', error.message); return; }
-    await sb.from('profiles').insert({ id: data.user.id, role });
+    await sb.from('profiles').upsert({ id: data.user.id, role }, { onConflict: 'id' });
     if(data.session){
       await loadCurrentUser();
       closeModal('authModal');
@@ -531,15 +610,29 @@ async function loadPublicListings(){
   grid.innerHTML = (data||[]).map(propCardHTML).join('') || '<p class="small">No listings yet.</p>';
 }
 
+function propFactsHTML(p){
+  const bits = [];
+  if(p.bedrooms) bits.push(`🛏️ ${p.bedrooms} BHK`);
+  if(p.bathrooms) bits.push(`🛁 ${p.bathrooms} Bath`);
+  if(p.area_sqft) bits.push(`📐 ${p.area_sqft} sqft`);
+  if(!bits.length) return '';
+  return `<div class="facts">${bits.map(b=>`<span>${b}</span>`).join('')}</div>`;
+}
+
 function propCardHTML(p){
   const thumb = p.thumbnail_url || 'https://placehold.co/400x260/1B1D27/D4AF37?text=DAMT+RENTAL';
   return `<div class="card">
-    <div class="thumb" style="background-image:url('${thumb}')"><div class="lock">🔒</div></div>
+    <div class="thumb" style="background-image:url('${thumb}')">
+      <span class="no-brokerage">NO BROKERAGE</span>
+      <span class="type-tag">${escapeHtml(p.property_type || 'Apartment')}</span>
+      <div class="lock">🔒</div>
+    </div>
     <div class="body">
       <div class="title">${escapeHtml(p.title)}</div>
-      <div class="meta">${escapeHtml(p.city)}</div>
+      <div class="meta">📍 ${escapeHtml(p.city)}</div>
+      ${propFactsHTML(p)}
       <div class="meta">${escapeHtml(p.public_summary || 'Unlock to see full details')}</div>
-      <div class="rent">₹${p.rent}/month</div>
+      <div class="rent">₹${p.rent}<span class="rent-tag">/month</span></div>
       <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="openAuth('seeker')">Login to Unlock</button>
     </div>
   </div>`;
@@ -597,23 +690,45 @@ async function loadSeekerListings(){
   await refreshAccessStatus();
   const grid = document.getElementById('seekerGrid');
   grid.innerHTML = '<p class="small">Loading...</p>';
-  const { data } = await sb.from('properties').select('*').eq('status','approved').order('created_at',{ascending:false});
+
+  let query = sb.from('properties').select('*').eq('status','approved');
+
+  const city = document.getElementById('searchCity')?.value.trim();
+  if(city) query = query.ilike('city', `%${city}%`);
+
+  const type = document.getElementById('filterType')?.value;
+  if(type) query = query.eq('property_type', type);
+
+  const bedrooms = document.getElementById('filterBedrooms')?.value;
+  if(bedrooms) query = bedrooms === '4' ? query.gte('bedrooms', 4) : query.eq('bedrooms', Number(bedrooms));
+
+  const maxRent = document.getElementById('filterMaxRent')?.value;
+  if(maxRent) query = query.lte('rent', Number(maxRent));
+
+  const { data } = await query.order('created_at',{ascending:false});
+
   grid.innerHTML = (data||[]).map(p => {
     const thumb = p.thumbnail_url || 'https://placehold.co/400x260/1B1D27/D4AF37?text=DAMT+RENTAL';
     const unlocked = !!seekerAccess;
     return `<div class="card">
-      <div class="thumb" style="background-image:url('${thumb}')">${unlocked?'':'<div class="lock">🔒</div>'}</div>
+      <div class="thumb" style="background-image:url('${thumb}')">
+        <span class="no-brokerage">NO BROKERAGE</span>
+        <span class="type-tag">${escapeHtml(p.property_type || 'Apartment')}</span>
+        ${unlocked?'':'<div class="lock">🔒</div>'}
+      </div>
       <div class="body">
         <div class="title">${escapeHtml(p.title)}</div>
-        <div class="meta">${escapeHtml(p.city)}</div>
-        <div class="rent">₹${p.rent}/month</div>
+        <div class="meta">📍 ${escapeHtml(p.city)}</div>
+        ${propFactsHTML(p)}
+        <div class="meta">${escapeHtml(p.furnishing || '')}</div>
+        <div class="rent">₹${p.rent}<span class="rent-tag">/month</span></div>
         <button class="btn ${unlocked?'btn-teal':'btn-gold'} btn-sm" style="margin-top:10px"
           onclick="${unlocked ? `viewFullDetails('${p.id}')` : `openUnlock('${p.id}','${escapeHtml(p.title)}')`}">
           ${unlocked ? 'View Full Details' : 'Unlock for ₹100/day'}
         </button>
       </div>
     </div>`;
-  }).join('') || '<p class="small">No listings yet.</p>';
+  }).join('') || '<p class="small">No listings match your search.</p>';
 }
 
 async function viewFullDetails(propId){
@@ -623,7 +738,15 @@ async function viewFullDetails(propId){
     content.innerHTML = `<div class="msg msg-err">Access expired or not verified. Please unlock again.</div>`;
   } else {
     const d = data[0];
+    const facts = [
+      d.property_type ? `🏠 ${escapeHtml(d.property_type)}` : '',
+      d.bedrooms ? `🛏️ ${d.bedrooms} BHK` : '',
+      d.bathrooms ? `🛁 ${d.bathrooms} Bathroom${d.bathrooms>1?'s':''}` : '',
+      d.area_sqft ? `📐 ${d.area_sqft} sqft` : '',
+      d.furnishing ? `🛋️ ${escapeHtml(d.furnishing)}` : ''
+    ].filter(Boolean).join(' &nbsp;•&nbsp; ');
     content.innerHTML = `<h3>Full Property Details</h3>
+      ${facts ? `<p class="meta">${facts}</p>` : ''}
       <p><b>Address:</b> ${escapeHtml(d.full_address||'-')}</p>
       <p><b>Owner Contact:</b> ${escapeHtml(d.owner_contact||'-')}</p>
       <p><b>Description:</b> ${escapeHtml(d.description||'-')}</p>`;
@@ -751,6 +874,11 @@ async function submitProperty(){
   const address = document.getElementById('opAddress').value.trim();
   const contact = document.getElementById('opContact').value.trim();
   const desc = document.getElementById('opDesc').value.trim();
+  const propertyType = document.getElementById('opType').value;
+  const furnishing = document.getElementById('opFurnishing').value;
+  const bedrooms = document.getElementById('opBedrooms').value ? Number(document.getElementById('opBedrooms').value) : null;
+  const bathrooms = document.getElementById('opBathrooms').value ? Number(document.getElementById('opBathrooms').value) : null;
+  const area = document.getElementById('opArea').value ? Number(document.getElementById('opArea').value) : null;
   if(!title || !city || !rent){ msg('ownerMsg','Please fill in title, city and rent.'); return; }
 
   let thumbnailUrl = null;
@@ -769,11 +897,12 @@ async function submitProperty(){
     owner_id: currentUser.id, title, city, rent,
     public_summary: `${city} • ₹${rent}/mo`,
     full_address: address, owner_contact: contact, description: desc,
+    property_type: propertyType, furnishing, bedrooms, bathrooms, area_sqft: area,
     thumbnail_url: thumbnailUrl, status: 'pending'
   });
   msg('ownerMsg', error ? error.message : 'Submitted! Waiting for admin approval.', !error);
   if(!error){
-    ['opTitle','opCity','opRent','opAddress','opContact','opDesc'].forEach(id=>document.getElementById(id).value='');
+    ['opTitle','opCity','opRent','opAddress','opContact','opDesc','opBedrooms','opBathrooms','opArea'].forEach(id=>document.getElementById(id).value='');
     loadOwnerListings();
   }
 }
@@ -785,6 +914,11 @@ async function adminAddProperty(){
   const address = document.getElementById('aAddress').value.trim();
   const contact = document.getElementById('aContact').value.trim();
   const desc = document.getElementById('aDesc').value.trim();
+  const propertyType = document.getElementById('aType').value;
+  const furnishing = document.getElementById('aFurnishing').value;
+  const bedrooms = document.getElementById('aBedrooms').value ? Number(document.getElementById('aBedrooms').value) : null;
+  const bathrooms = document.getElementById('aBathrooms').value ? Number(document.getElementById('aBathrooms').value) : null;
+  const area = document.getElementById('aArea').value ? Number(document.getElementById('aArea').value) : null;
   if(!title || !city || !rent){ msg('adminAddMsg','Please fill in title, city and rent.'); return; }
 
   let thumbnailUrl = null;
@@ -803,11 +937,12 @@ async function adminAddProperty(){
     owner_id: currentUser.id, title, city, rent,
     public_summary: `${city} • ₹${rent}/mo`,
     full_address: address, owner_contact: contact, description: desc,
+    property_type: propertyType, furnishing, bedrooms, bathrooms, area_sqft: area,
     thumbnail_url: thumbnailUrl, status: 'approved'
   });
   msg('adminAddMsg', error ? error.message : 'Listing published!', !error);
   if(!error){
-    ['aTitle','aCity','aRent','aAddress','aContact','aDesc'].forEach(id=>document.getElementById(id).value='');
+    ['aTitle','aCity','aRent','aAddress','aContact','aDesc','aBedrooms','aBathrooms','aArea'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('aPhotos').value = '';
     loadAdminAll(); loadAdminPending();
   }
@@ -824,6 +959,7 @@ async function loadOwnerListings(){
       <div class="body">
         <div class="title">${escapeHtml(p.title)}</div>
         <div class="meta">${escapeHtml(p.city)} · ₹${p.rent}/mo</div>
+        ${propFactsHTML(p)}
         <span class="badge badge-${p.status}">${p.status.toUpperCase()}</span>
       </div>
     </div>`;
@@ -856,6 +992,7 @@ async function loadAdminPending(){
       <div class="body">
         <div class="title">${escapeHtml(p.title)}</div>
         <div class="meta">${escapeHtml(p.city)} · ₹${p.rent}/mo</div>
+        ${propFactsHTML(p)}
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-teal btn-sm" onclick="setPropertyStatus('${p.id}','approved')">Approve</button>
           <button class="btn btn-danger btn-sm" onclick="setPropertyStatus('${p.id}','rejected')">Reject</button>
@@ -873,6 +1010,7 @@ async function loadAdminAll(){
       <div class="body">
         <div class="title">${escapeHtml(p.title)}</div>
         <div class="meta">${escapeHtml(p.city)} · ₹${p.rent}/mo</div>
+        ${propFactsHTML(p)}
         <span class="badge badge-${p.status}">${p.status.toUpperCase()}</span>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="editProperty('${p.id}')">Edit</button>
